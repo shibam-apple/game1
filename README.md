@@ -42,7 +42,8 @@ Install Godot 4.4.1, open `project.godot`, press F5.
 - `scripts/gesture_input.gd` - tap / swipe / hold / drag recognition
 - `scripts/humanoid.gd` - placeholder character rig (to be replaced by real models)
 - `scripts/hud.gd`, `scripts/sfx.gd` - interface and synthesised sound
-- `shaders/sand.gdshader` - procedural rippled sand
+- `shaders/sand.gdshader` - rippled sand (photo grain + procedural dunes)
+- `assets/` - textures and their credits
 - `docs/DESIGN.md` - concept, story, combat design, roadmap
 
 ## Status

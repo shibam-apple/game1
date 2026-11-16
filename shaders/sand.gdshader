@@ -28,9 +28,9 @@ void fragment() {
 	float rip_h = sin(phase);
 	vec2 rip_n = cos(phase) * vec2(0.94, 0.34) * ripple_strength * near;
 
-	vec2 g = texture(grain_n, uv * 1.9).rg - 0.5;
+	vec2 g = (texture(grain_n, uv * 0.42).rg - 0.5) + (texture(grain_n, uv * 0.11 + vec2(0.31, 0.67)).rg - 0.5) * 0.6;
 	vec2 d = texture(drift_n, uv * 0.11).rg - 0.5;
-	vec2 n = g * 0.55 * near + d * 0.9 + rip_n;
+	vec2 n = g * (0.35 + 0.45 * near) + d * 0.9 + rip_n;
 
 	vec3 col = mix(col_dark, col_light, clamp(big * 0.75 + mid * 0.45, 0.0, 1.0));
 	col *= 0.93 + 0.07 * rip_h * near;

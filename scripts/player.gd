@@ -253,6 +253,8 @@ func _melee(ev: Dictionary) -> void:
 	var mult := 1.3 if limit_active > 0.0 else 1.0
 	boss.take_hit(float(ev["dmg"]) * mult, float(ev["will"]) * mult)
 	hits_landed += 1
+	game.add_combo(1)
+	game.buzz(35 if float(ev.get("stop", 0.045)) > 0.07 else 12)
 	if limit_active > 0.0:
 		hp = minf(MAX_HP, hp + 1.5)
 	else:
@@ -265,7 +267,7 @@ func _gain(v: float) -> void:
 	if limit_active > 0.0:
 		return
 	var was := limit
-	limit = minf(100.0, limit + v)
+	limit = minf(100.0, limit + v * game.style_mult())
 	if limit >= 100.0 and was < 100.0:
 		game.on_limit_ready()
 

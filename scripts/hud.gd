@@ -200,6 +200,13 @@ func _draw_fight(sz: Vector2) -> void:
 		_sp(names[i], r.position + Vector2(68, 22), 12, INK if ready else DIM, 3.0, 1)
 		_sp(hints[i], r.position + Vector2(68, 52), 9, DIM, 2.0, 1)
 
+	# style chain, right edge
+	if game.combo > 1:
+		var gr: int = game.grade()
+		var gcol: Color = [DIM, INK, BLUE, GOLD, REDC][gr]
+		_sp(game.GRADES[gr], Vector2(sz.x - 60, sz.y * 0.42), 58, gcol, 0.0, 2)
+		_sp("%d HITS" % game.combo, Vector2(sz.x - 60, sz.y * 0.42 + 26), 14, INK, 4.0, 2)
+		_bar(Vector2(sz.x - 190, sz.y * 0.42 + 36), 126, 3, game.combo_t / 3.2, gcol)
 	if p._counter_window > 0.0:
 		_sp("TAP TO COUNTER", Vector2(sz.x * 0.5, sz.y * 0.62), 20, Color(BLUE, 0.6 + 0.4 * sin(_time * 24.0)), 6.0, 1)
 	if _flash_t > 0.0:
@@ -230,5 +237,5 @@ func _overlay(sz: Vector2, title: String, sub: String, col: Color) -> void:
 func _draw_win(sz: Vector2) -> void:
 	_overlay(sz, "LINK SEVERED", "TAP TO DUEL AGAIN", GOLD)
 	var t: float = game.fight_time
-	var txt := "TIME %d:%02d     HITS TAKEN %d     RANK %s" % [int(t) / 60, int(t) % 60, game.hits_taken, game.rank()]
+	var txt := "TIME %d:%02d     HITS TAKEN %d     BEST CHAIN %d     RANK %s" % [int(t) / 60, int(t) % 60, game.hits_taken, game.best_combo, game.rank()]
 	_sp(txt, Vector2(sz.x * 0.5, sz.y * 0.46 + 96), 15, INK, 4.0, 1)

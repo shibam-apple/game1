@@ -183,6 +183,16 @@ func _capsule(parent: Node3D, radius: float, height: float, pos: Vector3, mat: M
 	return _mesh(parent, m, pos, mat)
 
 
+## Scratched-metal normal detail on the armour.
+func set_detail(tex: Texture2D, tiling: float) -> void:
+	for m in [body_mat, trim_mat]:
+		m.normal_enabled = true
+		m.normal_texture = tex
+		m.normal_scale = 0.8
+		m.uv1_triplanar = true
+		m.uv1_scale = Vector3(tiling, tiling, tiling)
+
+
 func set_blade(col: Color, energy: float) -> void:
 	blade_mat.emission = col
 	blade_mat.emission_energy_multiplier = energy

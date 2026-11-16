@@ -46,6 +46,12 @@ var _shot_at := -1.0
 var _shot_path := ""
 var _elapsed := 0.0
 var _test_hp := 0.0
+var combo := 0
+var best_combo := 0
+var combo_t := 0.0
+var _fov_kick := 0.0
+
+const GRADES := ["D", "C", "B", "A", "S"]
 
 
 func _ready() -> void:
@@ -71,6 +77,9 @@ func _ready() -> void:
 	boss.player = player
 	add_child(player)
 	add_child(boss)
+	var wear: Texture2D = load("res://assets/textures/aluminium_normal.png")
+	player.vis.set_detail(wear, 3.0)
+	boss.vis.set_detail(wear, 3.0)
 	player.reset(Vector3(0, 0, 8))
 	boss.reset(Vector3(0, 0, -5))
 
@@ -202,7 +211,7 @@ func _build_world() -> void:
 	# Sand: rolling dune terrain with a procedural rippled-sand shader.
 	var sand := ShaderMaterial.new()
 	sand.shader = load("res://shaders/sand.gdshader")
-	sand.set_shader_parameter("grain_n", _noise_tex(0.05, 3, true, 3))
+	sand.set_shader_parameter("grain_n", load("res://assets/textures/sand_normal.jpg"))
 	sand.set_shader_parameter("drift_n", _noise_tex(0.012, 4, true, 5))
 	sand.set_shader_parameter("vary", _noise_tex(0.02, 4, false, 9))
 	var terrain := MeshInstance3D.new()
@@ -214,13 +223,16 @@ func _build_world() -> void:
 	var r := RandomNumberGenerator.new()
 	r.seed = 11
 	var rock := StandardMaterial3D.new()
-	rock.albedo_color = Color(0.36, 0.23, 0.16)
-	rock.roughness = 0.95
+	rock.albedo_color = Color(0.82, 0.66, 0.56)
+	rock.albedo_texture = load("res://assets/textures/rock_albedo.jpg")
 	rock.normal_enabled = true
-	rock.normal_texture = _noise_tex(0.03, 5, true, 21)
-	rock.normal_scale = 1.8
+	rock.normal_texture = load("res://assets/textures/rock_normal.png")
+	rock.normal_scale = 1.4
+	rock.roughness_texture = load("res://assets/textures/rock_rough.jpg")
+	rock.ao_enabled = true
+	rock.ao_texture = load("res://assets/textures/rock_ao.jpg")
 	rock.uv1_triplanar = true
-	rock.uv1_scale = Vector3(0.35, 0.35, 0.35)
+	rock.uv1_scale = Vector3(0.22, 0.22, 0.22)
 	var rock_meshes: Array = []
 	for i in 4:
 		rock_meshes.append(_make_rock(100 + i))
@@ -231,11 +243,13 @@ func _build_world() -> void:
 		var sc := Vector3(r.randf_range(1.0, 2.4), r.randf_range(2.2, 4.6) if tall else r.randf_range(0.6, 1.4), r.randf_range(1.0, 2.2))
 		_add_mesh(self, rock_meshes[i % 4], Vector3(cos(ang) * d, sc.y * 0.25, sin(ang) * d), rock, Vector3(r.randf_range(-12, 12), r.randf() * 360.0, r.randf_range(-12, 12)), sc)
 	# A few far mesas for depth
+	var far_rock: StandardMaterial3D = rock.duplicate()
+	far_rock.uv1_scale = Vector3(0.02, 0.02, 0.02)
 	for i in 7:
 		var ang := r.randf() * TAU
 		var d := r.randf_range(120.0, 260.0)
 		var w := r.randf_range(18.0, 40.0)
-		_add_mesh(self, rock_meshes[i % 4], Vector3(cos(ang) * d, 6.0, sin(ang) * d), rock, Vector3(0, r.randf() * 360.0, 0), Vector3(w, r.randf_range(14.0, 30.0), w * 0.8))
+		_add_mesh(self, rock_meshes[i % 4], Vector3(cos(ang) * d, 6.0, sin(ang) * d), far_rock, Vector3(0, r.randf() * 360.0, 0), Vector3(w, r.randf_range(14.0, 30.0), w * 0.8))
 
 	# The Broken Ring on the horizon
 	var ring := TorusMesh.new()
@@ -384,6 +398,7 @@ func _build_mech(body: Color, trim: Color, glow: Color, winged: bool) -> Node3D:
 	var m: Node3D = Humanoid.new()
 	add_child(m)
 	m.build(body, trim, glow, 1.7, 1.45)
+	m.set_detail(load("res://assets/textures/aluminium_normal.png"), 1.2)
 	m.scale = Vector3.ONE * 10.0
 	m.walk_rate = 0.0
 	var torso: Node3D = m.joints["torso"]
@@ -504,14 +519,39 @@ func _start_fight() -> void:
 	input.reset()
 	fight_time = 0.0
 	hits_taken = 0
+	combo = 0
+	best_combo = 0
 	hud._boss_lag = 1.0
 	if _test_hp > 0.0:
 		boss.hp = _test_hp
 	_set_g(G.INTRO)
 
 
+## Style grade from the running hit chain. Higher grades fill the link gauge faster.
+func grade() -> int:
+	if combo >= 30: return 4
+	if combo >= 20: return 3
+	if combo >= 12: return 2
+	if combo >= 5: return 1
+	return 0
+
+
+func style_mult() -> float:
+	return 1.0 + 0.15 * grade()
+
+
+func add_combo(n: int) -> void:
+	combo += n
+	best_combo = maxi(best_combo, combo)
+	combo_t = 3.2
+
+
+func buzz(ms: int) -> void:
+	Input.vibrate_handheld(ms)
+
+
 func rank() -> String:
-	if hits_taken <= 2 and fight_time < 150.0:
+	if hits_taken <= 2 and best_combo >= 20:
 		return "S"
 	if hits_taken <= 5:
 		return "A"
@@ -561,6 +601,10 @@ func _process(delta: float) -> void:
 				hud.say("LANCER", "He's airborne. Swipe up to reach him.")
 		G.FIGHT:
 			fight_time += delta
+			if combo > 0:
+				combo_t -= delta
+				if combo_t <= 0.0:
+					combo = 0
 			if player.hp < 35.0 and player.flasks > 0:
 				_once("low", "LANCER", "Vitals critical. Tap a cell, bottom left.")
 			if _autotest:
@@ -602,6 +646,8 @@ func _update_camera(delta: float) -> void:
 			pos = pos.lerp(boss.global_position + Vector3(2.5, boss.alt + 1.0, 5.0), 1.0 - smoothstep(0.0, 1.0, u))
 			look = look.lerp(boss.chest(), 1.0 - u)
 			k = 1.0
+	_fov_kick = maxf(0.0, _fov_kick - delta * 18.0 / maxf(0.05, Engine.time_scale))
+	cam.fov = 58.0 + _fov_kick
 	cam.global_position = cam.global_position.lerp(pos, k)
 	var target := look
 	if _shake > 0.0:
@@ -842,6 +888,9 @@ func ring(at: Vector3, radius: float, dur: float, col: Color) -> void:
 
 func perfect_dodge(at: Vector3) -> void:
 	slowmo(0.22, 0.55)
+	add_combo(3)
+	buzz(40)
+	_fov_kick = 9.0
 	sfx.play("perfect")
 	hud.flash("PERFECT DODGE", HudS.BLUE)
 	ring(at, 3.0, 0.4, Color(0.5, 0.8, 1.0))
@@ -850,6 +899,9 @@ func perfect_dodge(at: Vector3) -> void:
 
 func parry_fx(at: Vector3) -> void:
 	hitstop(0.12)
+	add_combo(3)
+	buzz(60)
+	_fov_kick = 5.0
 	shake(0.35)
 	sfx.play("parry")
 	spark(at, Color(1.0, 0.95, 0.7), 22)
@@ -858,6 +910,8 @@ func parry_fx(at: Vector3) -> void:
 
 func on_player_hit(_dmg: float, at: Vector3) -> void:
 	hits_taken += 1
+	combo = 0
+	buzz(120)
 	hud.hurt()
 	shake(0.5)
 	hitstop(0.06)
@@ -874,6 +928,8 @@ func on_limit_ready() -> void:
 
 
 func on_boss_stagger(at: Vector3) -> void:
+	buzz(150)
+	_fov_kick = 8.0
 	slowmo(0.3, 0.6)
 	shake(0.6)
 	sfx.play("stagger")
