@@ -1,46 +1,59 @@
 shader_type spatial;
-// Wind-rippled desert sand. Fully procedural, no texture files:
-// large colour drift, fine grain, directional ripples and near-camera glints.
+// Desert ground from scanned sand (Poly Haven), with rain-damp patches and
+// shallow pools on the flat duelling ground that mirror the sky.
 
-uniform sampler2D grain_n : hint_normal, repeat_enable, filter_linear_mipmap;
-uniform sampler2D drift_n : hint_normal, repeat_enable, filter_linear_mipmap;
+uniform sampler2D dry_albedo : source_color, repeat_enable, filter_linear_mipmap_anisotropic;
+uniform sampler2D dry_normal : hint_normal, repeat_enable, filter_linear_mipmap_anisotropic;
+uniform sampler2D dry_arm : repeat_enable, filter_linear_mipmap;
+uniform sampler2D wet_albedo : source_color, repeat_enable, filter_linear_mipmap;
+uniform sampler2D wet_normal : hint_normal, repeat_enable, filter_linear_mipmap;
 uniform sampler2D vary : repeat_enable, filter_linear_mipmap;
-uniform vec3 col_light : source_color = vec3(0.66, 0.43, 0.27);
-uniform vec3 col_dark : source_color = vec3(0.47, 0.28, 0.17);
-uniform float ripple_strength = 0.1;
+uniform vec3 tint : source_color = vec3(0.86, 0.56, 0.36);
+uniform float wet_amount : hint_range(0.0, 1.0) = 0.3;
+uniform float wet_radius = 34.0;
 
 varying vec3 wpos;
+varying vec3 wnrm;
 
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	wnrm = normalize(MODEL_NORMAL_MATRIX * NORMAL);
 }
 
 void fragment() {
 	vec2 uv = wpos.xz;
 	float dist = length(VERTEX);
-	float near = 1.0 - smoothstep(18.0, 70.0, dist);
-
+	float far = smoothstep(10.0, 55.0, dist) * 0.85;
 	float big = texture(vary, uv * 0.006).r;
-	float mid = texture(vary, uv * 0.045 + vec2(0.37, 0.11)).r;
 
-	// ripples: stripes across the wind, bent by noise so they never line up
-	float phase = (uv.x * 0.94 + uv.y * 0.34) * 9.5 + mid * 7.0 + big * 12.0;
-	float rip_h = sin(phase);
-	vec2 rip_n = cos(phase) * vec2(0.94, 0.34) * ripple_strength * near;
+	// two tiling scales, blended by distance, so the repeat never shows
+	vec3 alb = mix(texture(dry_albedo, uv * 0.21).rgb, texture(dry_albedo, uv * 0.033 + vec2(0.4)).rgb, far);
+	vec3 nrm = mix(texture(dry_normal, uv * 0.21).rgb, texture(dry_normal, uv * 0.033 + vec2(0.4)).rgb, far);
+	vec3 arm = texture(dry_arm, uv * 0.21).rgb;
+	alb *= tint * mix(0.84, 1.1, big);
+	float rough = arm.g;
 
-	vec2 g = (texture(grain_n, uv * 0.42).rg - 0.5) + (texture(grain_n, uv * 0.11 + vec2(0.31, 0.67)).rg - 0.5) * 0.6;
-	vec2 d = texture(drift_n, uv * 0.11).rg - 0.5;
-	vec2 n = g * (0.35 + 0.45 * near) + d * 0.9 + rip_n;
+	// where the rain has not dried yet
+	float w = texture(vary, uv * 0.021 + vec2(0.13, 0.71)).r + (wet_amount - 0.5) * 0.3;
+	float where = smoothstep(0.90, 0.985, wnrm.y) * (1.0 - smoothstep(wet_radius * 0.7, wet_radius, length(wpos.xz)));
+	float damp = smoothstep(0.47, 0.56, w) * where;
+	float pool = smoothstep(0.585, 0.615, w) * where;
 
-	vec3 col = mix(col_dark, col_light, clamp(big * 0.75 + mid * 0.45, 0.0, 1.0));
-	col *= 0.93 + 0.07 * rip_h * near;
-	ALBEDO = col;
-	NORMAL_MAP = vec3(n + 0.5, 1.0);
-	NORMAL_MAP_DEPTH = 1.1;
-	ROUGHNESS = 0.9;
-	SPECULAR = 0.25;
+	vec3 walb = texture(wet_albedo, uv * 0.3).rgb * tint * 0.62;
+	vec3 wn = texture(wet_normal, uv * 0.3).rgb;
+	alb = mix(alb, walb, damp);
+	nrm = mix(nrm, wn, damp);
+	rough = mix(rough, 0.32, damp);
 
-	// quartz glints close to the camera
-	float spark = texture(vary, uv * 7.0).r * texture(vary, uv * 11.3 + vec2(0.5)).r;
-	EMISSION = vec3(1.0, 0.86, 0.66) * smoothstep(0.62, 0.8, spark) * 0.5 * (1.0 - smoothstep(4.0, 22.0, dist));
+	// standing water: dark, flat, mirror-smooth
+	alb = mix(alb, walb * 0.45, pool);
+	nrm = mix(nrm, vec3(0.5, 0.5, 1.0), pool * 0.96);
+	rough = mix(rough, 0.03, pool);
+
+	ALBEDO = alb;
+	NORMAL_MAP = nrm;
+	NORMAL_MAP_DEPTH = 1.25;
+	ROUGHNESS = rough;
+	AO = mix(arm.r, 1.0, pool);
+	SPECULAR = mix(0.35, 0.75, pool);
 }

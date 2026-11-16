@@ -40,6 +40,7 @@ var _post_speed := 1.0
 var _hold := false
 var _past := false
 var _cur_file := ""
+var _tint_mat: StandardMaterial3D
 
 
 func build(model_path: String, blade_col: Color, blade_len: float, tint = null) -> void:
@@ -81,6 +82,7 @@ func build(model_path: String, blade_col: Color, blade_len: float, tint = null) 
 		tint_mat.albedo_color = tint
 		tint_mat.metallic = 0.75
 		tint_mat.roughness = 0.42
+		_tint_mat = tint_mat
 	for mi in _model.find_children("*", "MeshInstance3D", true, false):
 		mi.material_overlay = _overlay
 		mi.extra_cull_margin = 2.0
@@ -174,6 +176,21 @@ func _find_strike(f: String) -> float:
 
 func set_detail(_tex: Texture2D, _tiling: float) -> void:
 	pass
+
+
+## Scanned metal plating over the tinted body (used on the mechs).
+func set_plating(albedo: Texture2D, normal: Texture2D, orm: Texture2D, tiling: float) -> void:
+	if _tint_mat == null:
+		return
+	_tint_mat.albedo_texture = albedo
+	_tint_mat.normal_enabled = true
+	_tint_mat.normal_texture = normal
+	_tint_mat.roughness_texture = orm
+	_tint_mat.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_GREEN
+	_tint_mat.roughness = 1.0
+	_tint_mat.metallic = 0.6
+	_tint_mat.uv1_triplanar = true
+	_tint_mat.uv1_scale = Vector3(tiling, tiling, tiling)
 
 
 func set_blade(col: Color, energy: float) -> void:

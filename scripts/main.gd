@@ -11,6 +11,7 @@ const SfxS := preload("res://scripts/sfx.gd")
 
 enum G { TITLE, HOWTO, INTRO, FIGHT, DEAD, WIN }
 const ARENA_R := 15.0
+const TEX := "res://assets/textures/ph/"
 
 var gstate: int = G.TITLE
 var quality := 1
@@ -161,54 +162,53 @@ func _add_mesh(parent: Node, mesh: Mesh, pos: Vector3, mat: Material, rot := Vec
 
 
 func _build_world() -> void:
-	# Sky: dusty amber horizon under a cold, pale zenith.
-	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color(0.36, 0.42, 0.52)
-	sky_mat.sky_horizon_color = Color(0.96, 0.7, 0.44)
-	sky_mat.sky_curve = 0.09
-	sky_mat.ground_horizon_color = Color(0.96, 0.7, 0.44)
-	sky_mat.ground_bottom_color = Color(0.5, 0.32, 0.2)
-	sky_mat.sun_angle_max = 12.0
-	sky_mat.sun_curve = 0.08
+	# Sky: a photographed HDR sky lights the whole scene (image-based lighting).
+	var sky_mat := PanoramaSkyMaterial.new()
+	sky_mat.panorama = load(TEX + "kloofendal_48d_partly_cloudy_puresky_2k.hdr")
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
+	sky.radiance_size = Sky.RADIANCE_SIZE_256
 	env = Environment.new()
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 0.55
+	env.ambient_light_energy = 0.8
+	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.tonemap_white = 5.0
+	env.tonemap_white = 6.0
 	env.fog_enabled = true
-	env.fog_light_color = Color(0.86, 0.62, 0.42)
-	env.fog_density = 0.013
-	env.fog_sun_scatter = 0.35
-	env.fog_sky_affect = 0.25
+	env.fog_light_color = Color(0.8, 0.68, 0.56)
+	env.fog_density = 0.0055
+	env.fog_sun_scatter = 0.3
+	env.fog_sky_affect = 0.0
 	env.glow_enabled = true
-	env.glow_intensity = 0.9
-	env.glow_bloom = 0.08
-	env.glow_hdr_threshold = 1.0
+	env.glow_intensity = 0.7
+	env.glow_bloom = 0.05
+	env.glow_hdr_threshold = 1.3
 	env.adjustment_enabled = true
-	env.adjustment_contrast = 1.14
-	env.adjustment_saturation = 0.86
+	env.adjustment_contrast = 1.1
+	env.adjustment_saturation = 1.02
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
 
-	# Low sun behind the far side of the arena: figures read as rim-lit silhouettes.
+	# Sun placed exactly where it sits in the sky photograph (48 degrees up).
 	sun = DirectionalLight3D.new()
-	sun.light_color = Color(1.0, 0.82, 0.6)
-	sun.light_energy = 1.75
-	sun.rotation_degrees = Vector3(-24, 150, 0)
-	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
-	sun.directional_shadow_max_distance = 45.0
-	sun.directional_shadow_fade_start = 0.7
-	sun.shadow_blur = 1.5
+	sun.light_color = Color(1.0, 0.95, 0.86)
+	sun.light_energy = 1.9
 	add_child(sun)
+	var az := deg_to_rad(34.1)
+	var el := deg_to_rad(48.0)
+	sun.position = Vector3(sin(az) * cos(el), sin(el), -cos(az) * cos(el)) * 50.0
+	sun.look_at(Vector3.ZERO, Vector3.UP)
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	sun.directional_shadow_max_distance = 70.0
+	sun.directional_shadow_fade_start = 0.8
+	sun.shadow_blur = 1.2
 	# Fake global illumination: warm light bouncing up off the sand.
 	bounce = DirectionalLight3D.new()
-	bounce.light_color = Color(1.0, 0.62, 0.38)
-	bounce.light_energy = 0.4
+	bounce.light_color = Color(1.0, 0.66, 0.42)
+	bounce.light_energy = 0.3
 	bounce.rotation_degrees = Vector3(62, -30, 0)
 	bounce.shadow_enabled = false
 	bounce.light_specular = 0.0
@@ -217,8 +217,11 @@ func _build_world() -> void:
 	# Sand: rolling dune terrain with a procedural rippled-sand shader.
 	var sand := ShaderMaterial.new()
 	sand.shader = load("res://shaders/sand.gdshader")
-	sand.set_shader_parameter("grain_n", load("res://assets/textures/sand_normal.jpg"))
-	sand.set_shader_parameter("drift_n", _noise_tex(0.012, 4, true, 5))
+	sand.set_shader_parameter("dry_albedo", load(TEX + "aerial_sand_diff_2k.jpg"))
+	sand.set_shader_parameter("dry_normal", load(TEX + "aerial_sand_nor_gl_2k.jpg"))
+	sand.set_shader_parameter("dry_arm", load(TEX + "aerial_sand_arm_2k.jpg"))
+	sand.set_shader_parameter("wet_albedo", load(TEX + "damp_sand_diff_1k.jpg"))
+	sand.set_shader_parameter("wet_normal", load(TEX + "damp_sand_nor_gl_1k.jpg"))
 	sand.set_shader_parameter("vary", _noise_tex(0.02, 4, false, 9))
 	var terrain := MeshInstance3D.new()
 	terrain.mesh = _make_terrain()
@@ -228,17 +231,16 @@ func _build_world() -> void:
 	# Arena edge: weathered rock outcrops, kept low so the mechs stay visible.
 	var r := RandomNumberGenerator.new()
 	r.seed = 11
-	var rock := StandardMaterial3D.new()
-	rock.albedo_color = Color(0.82, 0.66, 0.56)
-	rock.albedo_texture = load("res://assets/textures/rock_albedo.jpg")
+	var rock := ORMMaterial3D.new()
+	rock.albedo_color = Color(0.85, 0.6, 0.44)
+	rock.albedo_texture = load(TEX + "rock_face_03_diff_1k.jpg")
 	rock.normal_enabled = true
-	rock.normal_texture = load("res://assets/textures/rock_normal.png")
-	rock.normal_scale = 1.4
-	rock.roughness_texture = load("res://assets/textures/rock_rough.jpg")
+	rock.normal_texture = load(TEX + "rock_face_03_nor_gl_1k.jpg")
+	rock.normal_scale = 1.3
+	rock.orm_texture = load(TEX + "rock_face_03_arm_1k.jpg")
 	rock.ao_enabled = true
-	rock.ao_texture = load("res://assets/textures/rock_ao.jpg")
 	rock.uv1_triplanar = true
-	rock.uv1_scale = Vector3(0.22, 0.22, 0.22)
+	rock.uv1_scale = Vector3(0.3, 0.3, 0.3)
 	var rock_meshes: Array = []
 	for i in 4:
 		rock_meshes.append(_make_rock(100 + i))
@@ -249,7 +251,7 @@ func _build_world() -> void:
 		var sc := Vector3(r.randf_range(1.0, 2.4), r.randf_range(2.2, 4.6) if tall else r.randf_range(0.6, 1.4), r.randf_range(1.0, 2.2))
 		_add_mesh(self, rock_meshes[i % 4], Vector3(cos(ang) * d, sc.y * 0.25, sin(ang) * d), rock, Vector3(r.randf_range(-12, 12), r.randf() * 360.0, r.randf_range(-12, 12)), sc)
 	# A few far mesas for depth
-	var far_rock: StandardMaterial3D = rock.duplicate()
+	var far_rock: ORMMaterial3D = rock.duplicate()
 	far_rock.uv1_scale = Vector3(0.02, 0.02, 0.02)
 	for i in 7:
 		var ang := r.randf() * TAU
@@ -272,7 +274,7 @@ func _build_world() -> void:
 	mm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mm.albedo_color = Color(0.86, 0.74, 0.62)
 	mm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mm.albedo_color.a = 0.55
+	mm.albedo_color.a = 0.28
 	mm.disable_fog = true
 	_add_mesh(self, moon, Vector3(170, 190, -560), mm)
 
@@ -404,6 +406,7 @@ func _build_mech(model: String, body: Color, glow: Color, winged: bool) -> Node3
 	var m: Node3D = Mocap.new()
 	add_child(m)
 	m.build(model, glow, 1.6, body)
+	m.set_plating(load(TEX + "metal_plate_02_diff_1k.jpg"), load(TEX + "metal_plate_02_nor_gl_1k.jpg"), load(TEX + "metal_plate_02_arm_1k.jpg"), 0.9)
 	m.scale = Vector3.ONE * 10.0
 	var torso: Node3D = m.joints["torso"]
 	var dark := _mat(body.darkened(0.5), 0.45, 0.7)

@@ -10,3 +10,6 @@
 Great Sword animation pack are from [Mixamo](https://www.mixamo.com) (Adobe).
 They are royalty-free to ship inside a finished game, but the raw files may not
 be redistributed on their own, so keep this repository private.
+
+`textures/ph/` - sand, damp sand, rock face, metal plate textures and the
+Kloofendal partly-cloudy sky HDRI are from [Poly Haven](https://polyhaven.com), CC0.
