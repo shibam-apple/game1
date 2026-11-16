@@ -5,7 +5,7 @@ extends CharacterBody3D
 ##   red blade   = cannot be guarded, move
 ## Emptying his LINK gauge burns out the harness and drops him to the sand.
 
-const Humanoid := preload("res://scripts/humanoid.gd")
+const Mocap := preload("res://scripts/mocap.gd")
 
 enum S { IDLE, HOVER, ATTACK, GROUNDED, STAGGER, RECOIL, SHIFT, EVADE, DEAD }
 
@@ -92,10 +92,10 @@ func _ready() -> void:
 	col.shape = cap
 	col.position.y = 1.0
 	add_child(col)
-	vis = Humanoid.new()
+	vis = Mocap.new()
 	add_child(vis)
-	vis.build(Color(0.2, 0.09, 0.08), Color(0.7, 0.55, 0.25), _base_blade, 1.35, 1.1)
-	vis.scale = Vector3.ONE * 1.15
+	vis.build("res://assets/characters/kite/character.fbx", _base_blade, 1.45, Color(0.2, 0.07, 0.06))
+	vis.scale = Vector3.ONE * 1.1
 	# flight harness: swept wings and thruster pods
 	var torso: Node3D = vis.joints["torso"]
 	var wing_mat := StandardMaterial3D.new()

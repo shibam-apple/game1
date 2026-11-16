@@ -2,7 +2,7 @@ extends Node3D
 ## Sand Lancer - proof-of-concept duel. Builds the whole scene in code:
 ## world, lighting, fighters, mechs, camera, effects and game flow.
 
-const Humanoid := preload("res://scripts/humanoid.gd")
+const Mocap := preload("res://scripts/mocap.gd")
 const PlayerS := preload("res://scripts/player.gd")
 const BossS := preload("res://scripts/boss.gd")
 const HudS := preload("res://scripts/hud.gd")
@@ -46,6 +46,8 @@ var _shot_at := -1.0
 var _shot_path := ""
 var _elapsed := 0.0
 var _test_hp := 0.0
+var _closeup := false
+var sword_rot := Vector3(-999, 0, 0)
 var combo := 0
 var best_combo := 0
 var combo_t := 0.0
@@ -63,6 +65,11 @@ func _ready() -> void:
 			_shot_path = a.substr(7)
 		if a.begins_with("--shot-at="):
 			_shot_at = float(a.substr(10))
+	_closeup = "--closeup" in args
+	for a in args:
+		if a.begins_with("--sword="):
+			var parts := a.substr(8).split(",")
+			sword_rot = Vector3(float(parts[0]), float(parts[1]), float(parts[2]))
 	_load_settings()
 	_arc_mesh = _make_arc_mesh()
 	_build_world()
@@ -77,9 +84,8 @@ func _ready() -> void:
 	boss.player = player
 	add_child(player)
 	add_child(boss)
-	var wear: Texture2D = load("res://assets/textures/aluminium_normal.png")
-	player.vis.set_detail(wear, 3.0)
-	boss.vis.set_detail(wear, 3.0)
+	if sword_rot.x > -900.0:
+		player.vis.joints["sword"].rotation_degrees = sword_rot
 	player.reset(Vector3(0, 0, 8))
 	boss.reset(Vector3(0, 0, -5))
 
@@ -282,10 +288,10 @@ func _build_world() -> void:
 		_add_mesh(self, lm, tp + Vector3(0, tm.size.y * 0.3, tm.size.z * 0.5 + 0.2), _glow_mat(Color(1.0, 0.7, 0.35), 4.0))
 
 	# The two machines watch their pilots settle it on foot.
-	lancer = _build_mech(Color(0.8, 0.76, 0.68), Color(0.6, 0.22, 0.16), Color(0.35, 0.62, 1.0), false)
+	lancer = _build_mech("res://assets/characters/ran/character.fbx", Color(0.78, 0.74, 0.66), Color(0.35, 0.62, 1.0), false)
 	lancer.position = Vector3(-13, 0, 33)
 	lancer.rotation.y = 0.35
-	garuda = _build_mech(Color(0.16, 0.08, 0.08), Color(0.6, 0.48, 0.22), Color(1.0, 0.35, 0.15), true)
+	garuda = _build_mech("res://assets/characters/kite/character.fbx", Color(0.2, 0.08, 0.07), Color(1.0, 0.35, 0.15), true)
 	garuda.position = Vector3(21, 0, -38)
 	garuda.rotation.y = PI - 0.3
 
@@ -394,37 +400,31 @@ func _make_rock(seed_v: int) -> ArrayMesh:
 	return st.commit()
 
 
-func _build_mech(body: Color, trim: Color, glow: Color, winged: bool) -> Node3D:
-	var m: Node3D = Humanoid.new()
+func _build_mech(model: String, body: Color, glow: Color, winged: bool) -> Node3D:
+	var m: Node3D = Mocap.new()
 	add_child(m)
-	m.build(body, trim, glow, 1.7, 1.45)
-	m.set_detail(load("res://assets/textures/aluminium_normal.png"), 1.2)
+	m.build(model, glow, 1.6, body)
 	m.scale = Vector3.ONE * 10.0
-	m.walk_rate = 0.0
 	var torso: Node3D = m.joints["torso"]
-	var dark := _mat(body.darkened(0.45), 0.5, 0.6)
-	var drum := CylinderMesh.new()
-	drum.top_radius = 0.15
-	drum.bottom_radius = 0.15
-	drum.height = 0.2
-	drum.radial_segments = 12
+	var dark := _mat(body.darkened(0.5), 0.45, 0.7)
+	var core := BoxMesh.new()
+	core.size = Vector3(0.16, 0.1, 0.04)
+	_add_mesh(torso, core, Vector3(0, 0.3, -0.2), _glow_mat(glow, 4.0))
+	var pack := BoxMesh.new()
+	pack.size = Vector3(0.44, 0.44, 0.2)
+	_add_mesh(torso, pack, Vector3(0, 0.36, 0.2), dark)
 	for side in [1.0, -1.0]:
-		_add_mesh(torso, drum, Vector3(0.4 * side, 0.5, 0), dark, Vector3(0, 0, 90))
+		var pad := BoxMesh.new()
+		pad.size = Vector3(0.3, 0.16, 0.34)
+		_add_mesh(torso, pad, Vector3(0.3 * side, 0.6, 0), dark, Vector3(0, 0, -14.0 * side))
 		if winged:
 			var wm := BoxMesh.new()
 			wm.size = Vector3(0.12, 1.25, 0.5)
-			_add_mesh(torso, wm, Vector3(0.52 * side, 0.55, 0.3), dark, Vector3(-28, 0, -32.0 * side))
-	var core := BoxMesh.new()
-	core.size = Vector3(0.16, 0.1, 0.04)
-	_add_mesh(torso, core, Vector3(0, 0.28, -0.19), _glow_mat(glow, 4.0))
-	var pack := BoxMesh.new()
-	pack.size = Vector3(0.42, 0.42, 0.2)
-	_add_mesh(torso, pack, Vector3(0, 0.34, 0.24), dark)
+			_add_mesh(torso, wm, Vector3(0.5 * side, 0.6, 0.3), dark, Vector3(-28, 0, -32.0 * side))
 	if not winged:
-		# the lance it is named for
 		var lm := BoxMesh.new()
 		lm.size = Vector3(0.05, 1.9, 0.07)
-		_add_mesh(torso, lm, Vector3(0.12, 0.7, 0.36), dark, Vector3(0, 0, -14))
+		_add_mesh(torso, lm, Vector3(0.12, 0.7, 0.34), dark, Vector3(0, 0, -14))
 	return m
 
 
@@ -653,6 +653,9 @@ func _update_camera(delta: float) -> void:
 	if _shake > 0.0:
 		_shake = maxf(0.0, _shake - delta * 2.2 / maxf(0.05, Engine.time_scale))
 		target += Vector3(_rng.randf_range(-1, 1), _rng.randf_range(-1, 1), _rng.randf_range(-1, 1)) * _shake * 0.5
+	if _closeup:
+		cam.global_position = player.global_position + Vector3(1.6, 1.5, -2.8)
+		target = player.global_position + Vector3(0, 1.1, 0)
 	if cam.global_position.distance_to(target) > 0.1:
 		cam.look_at(target, Vector3.UP)
 

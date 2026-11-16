@@ -2,7 +2,7 @@ extends CharacterBody3D
 ## Ran Sen, pilot of the Sand Lancer, fighting on foot. Fast, fragile, built
 ## around combos, precise dodges, parries and calling the mech in.
 
-const Humanoid := preload("res://scripts/humanoid.gd")
+const Mocap := preload("res://scripts/mocap.gd")
 
 enum S { IDLE, ATTACK, DODGE, GUARD, HURT, ABILITY, DRINK, DEAD }
 
@@ -15,7 +15,7 @@ const CD_MAX := [8.0, 13.0]
 const COMBO := [
 	{"clip": "slash_r", "hit": 0.13, "dur": 0.40, "dmg": 9.0, "will": 8.0},
 	{"clip": "slash_l", "hit": 0.13, "dur": 0.40, "dmg": 9.0, "will": 8.0},
-	{"clip": "slash_r", "hit": 0.15, "dur": 0.44, "dmg": 11.0, "will": 10.0},
+	{"clip": "slash_c", "hit": 0.15, "dur": 0.44, "dmg": 11.0, "will": 10.0},
 	{"clip": "overhead", "hit": 0.24, "dur": 0.68, "dmg": 21.0, "will": 22.0},
 ]
 
@@ -63,9 +63,9 @@ func _ready() -> void:
 	col.shape = cap
 	col.position.y = 0.9
 	add_child(col)
-	vis = Humanoid.new()
+	vis = Mocap.new()
 	add_child(vis)
-	vis.build(Color(0.8, 0.76, 0.68), Color(0.6, 0.22, 0.16), Color(0.35, 0.62, 1.0), 1.15, 1.0)
+	vis.build("res://assets/characters/ran/character.fbx", Color(0.35, 0.62, 1.0), 1.25)
 	# wind-torn cape
 	_cape = Node3D.new()
 	_cape.position = Vector3(0, 0.5, 0.14)
@@ -81,6 +81,7 @@ func _ready() -> void:
 	cmi.material_override = cm
 	cmi.position = Vector3(0, -0.45, 0)
 	_cape.add_child(cmi)
+	_cape.visible = false   # a flat panel reads as cardboard next to a real model; needs cloth
 
 
 func reset(pos: Vector3) -> void:
@@ -386,7 +387,7 @@ func on_ability(i: int) -> void:
 		_dur = 0.95
 		_spin = true
 		_close_gap(2.2, 0.2, 26.0)
-		vis.play("slash_r", 0.18, 0.95, true)
+		vis.play("spin", 0.3, 0.95)
 		for k in 3:
 			_events.append({"t": 0.2 + 0.2 * k, "kind": "melee", "dmg": 10.0, "will": 18.0, "range": 3.6, "fx": 1.5, "roll": 0.3 * (k - 1), "shock": k == 2, "stop": 0.05, "limit": 3.0})
 		game.sfx.play("limit")
@@ -395,7 +396,7 @@ func on_ability(i: int) -> void:
 		_dur = 1.0
 		_leap = true
 		_close_gap(1.9, 0.58, 20.0)
-		vis.play("overhead", 0.6, 1.0)
+		vis.play("leap", 0.6, 1.0)
 		_events = [{"t": 0.6, "kind": "melee", "dmg": 38.0, "will": 45.0, "range": 4.2, "fx": 1.8, "roll": 1.5, "shock": true, "stop": 0.12, "shake": 0.6, "limit": 6.0}]
 		game.sfx.play("limit")
 

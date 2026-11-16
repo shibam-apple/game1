@@ -5,3 +5,8 @@
 [godotengine/godot-demo-projects](https://github.com/godotengine/godot-demo-projects)
 (MIT licence, Godot Engine contributors).
 `rock_normal.png` was derived from that demo's `rock_depth.jpg`.
+
+`characters/` - character models (Vanguard by T. Choonyung, Exo Gray) and the
+Great Sword animation pack are from [Mixamo](https://www.mixamo.com) (Adobe).
+They are royalty-free to ship inside a finished game, but the raw files may not
+be redistributed on their own, so keep this repository private.

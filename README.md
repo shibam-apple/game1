@@ -40,7 +40,8 @@ Install Godot 4.4.1, open `project.godot`, press F5.
 - `scripts/player.gd` - Ran Sen: combos, dodge, parry, techniques, summon
 - `scripts/boss.gd` - Kite: flight, attack patterns, phases, stagger
 - `scripts/gesture_input.gd` - tap / swipe / hold / drag recognition
-- `scripts/humanoid.gd` - placeholder character rig (to be replaced by real models)
+- `scripts/mocap.gd` - rigged characters driven by motion-captured sword animation
+- `scripts/humanoid.gd` - old placeholder rig (unused, kept for reference)
 - `scripts/hud.gd`, `scripts/sfx.gd` - interface and synthesised sound
 - `shaders/sand.gdshader` - rippled sand (photo grain + procedural dunes)
 - `assets/` - textures and their credits
@@ -48,5 +49,6 @@ Install Godot 4.4.1, open `project.godot`, press F5.
 
 ## Status
 
-Combat and controls are playable. Characters and mechs are placeholders built
-from primitives; see `docs/DESIGN.md` for the art pass that replaces them.
+Combat and controls are playable. Pilots use Mixamo models and motion capture.
+The mechs are the same models scaled up as stand-ins until real mech models go
+in. Keep the repo private: see `assets/CREDITS.md`.
