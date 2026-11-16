@@ -102,15 +102,31 @@ func _ready() -> void:
 	wing_mat.albedo_color = Color(0.14, 0.12, 0.13)
 	wing_mat.metallic = 0.8
 	wing_mat.roughness = 0.35
+	wing_mat.albedo_texture = load("res://assets/textures/ph/metal_plate_02_diff_1k.jpg")
+	wing_mat.normal_enabled = true
+	wing_mat.normal_texture = load("res://assets/textures/ph/metal_plate_02_nor_gl_1k.jpg")
+	wing_mat.uv1_triplanar = true
+	var edge_mat := StandardMaterial3D.new()
+	edge_mat.albedo_color = Color(1.0, 0.5, 0.2)
+	edge_mat.emission_enabled = true
+	edge_mat.emission = Color(1.0, 0.45, 0.15)
+	edge_mat.emission_energy_multiplier = 3.0
 	for side in [1.0, -1.0]:
 		var wm := BoxMesh.new()
-		wm.size = Vector3(1.15, 0.05, 0.3)
+		wm.size = Vector3(1.25, 0.025, 0.16)
 		var w := MeshInstance3D.new()
 		w.mesh = wm
 		w.material_override = wing_mat
 		w.position = Vector3(0.62 * side, 0.52, 0.22)
-		w.rotation_degrees = Vector3(0, -24.0 * side, 26.0 * side)
+		w.rotation_degrees = Vector3(0, -30.0 * side, 34.0 * side)
 		torso.add_child(w)
+		var em := BoxMesh.new()
+		em.size = Vector3(1.25, 0.012, 0.02)
+		var e := MeshInstance3D.new()
+		e.mesh = em
+		e.material_override = edge_mat
+		e.position = Vector3(0, 0, 0.09)
+		w.add_child(e)
 		var tm := StandardMaterial3D.new()
 		tm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		tm.albedo_color = Color(1.0, 0.6, 0.25)

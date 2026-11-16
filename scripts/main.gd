@@ -8,6 +8,7 @@ const BossS := preload("res://scripts/boss.gd")
 const HudS := preload("res://scripts/hud.gd")
 const InputS := preload("res://scripts/gesture_input.gd")
 const SfxS := preload("res://scripts/sfx.gd")
+const MechS := preload("res://scripts/mech_static.gd")
 
 enum G { TITLE, HOWTO, INTRO, FIGHT, DEAD, WIN }
 const ARENA_R := 15.0
@@ -48,6 +49,7 @@ var _shot_path := ""
 var _elapsed := 0.0
 var _test_hp := 0.0
 var _closeup := false
+var _soft: GradientTexture2D
 var sword_rot := Vector3(-999, 0, 0)
 var combo := 0
 var best_combo := 0
@@ -93,6 +95,11 @@ func _ready() -> void:
 	cam = Camera3D.new()
 	cam.fov = 58.0
 	cam.far = 900.0
+	var ca := CameraAttributesPractical.new()
+	ca.dof_blur_far_distance = 55.0
+	ca.dof_blur_far_transition = 90.0
+	ca.dof_blur_amount = 0.06
+	cam.attributes = ca
 	add_child(cam)
 	cam.make_current()
 
@@ -137,6 +144,21 @@ func _glow_mat(col: Color, energy := 2.0) -> StandardMaterial3D:
 	m.emission = col
 	m.emission_energy_multiplier = energy
 	return m
+
+
+func _soft_tex() -> GradientTexture2D:
+	if _soft == null:
+		var g := Gradient.new()
+		g.set_color(0, Color(1, 1, 1, 1))
+		g.set_color(1, Color(1, 1, 1, 0))
+		_soft = GradientTexture2D.new()
+		_soft.gradient = g
+		_soft.fill = GradientTexture2D.FILL_RADIAL
+		_soft.fill_from = Vector2(0.5, 0.5)
+		_soft.fill_to = Vector2(1.0, 0.5)
+		_soft.width = 64
+		_soft.height = 64
+	return _soft
 
 
 func _fx_mat(col: Color) -> StandardMaterial3D:
@@ -293,19 +315,22 @@ func _build_world() -> void:
 	lancer = _build_mech("res://assets/characters/ran/character.fbx", Color(0.78, 0.74, 0.66), Color(0.35, 0.62, 1.0), false)
 	lancer.position = Vector3(-13, 0, 33)
 	lancer.rotation.y = 0.35
-	garuda = _build_mech("res://assets/characters/kite/character.fbx", Color(0.2, 0.08, 0.07), Color(1.0, 0.35, 0.15), true)
-	garuda.position = Vector3(21, 0, -38)
-	garuda.rotation.y = PI - 0.3
+	garuda = MechS.new()
+	add_child(garuda)
+	garuda.build("res://assets/mechs/ironvex.glb", 19.0, Color(1.0, 0.55, 0.2))
+	garuda.position = Vector3(4, 0, -33)
+	garuda.rotation.y = -0.45
 
 	# Blowing dust
 	dust = CPUParticles3D.new()
 	var qm := QuadMesh.new()
-	qm.size = Vector2(0.07, 0.07)
+	qm.size = Vector2(0.28, 0.28)
 	var dm := StandardMaterial3D.new()
 	dm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	dm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	dm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	dm.albedo_color = Color(1.0, 0.85, 0.65, 0.5)
+	dm.albedo_color = Color(1.0, 0.86, 0.68, 0.22)
+	dm.albedo_texture = _soft_tex()
 	qm.material = dm
 	dust.mesh = qm
 	dust.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
@@ -461,6 +486,9 @@ func _apply_quality() -> void:
 	var vp := get_viewport()
 	vp.scaling_3d_scale = [0.6, 0.8, 1.0][quality]
 	vp.msaa_3d = Viewport.MSAA_2X if quality == 2 else Viewport.MSAA_DISABLED
+	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
+	if cam and cam.attributes:
+		(cam.attributes as CameraAttributesPractical).dof_blur_far_enabled = quality == 2
 	sun.shadow_enabled = quality >= 1
 	env.glow_enabled = quality >= 1
 	bounce.visible = true
@@ -841,9 +869,10 @@ func number(at: Vector3, text: String, col: Color) -> void:
 func spark(at: Vector3, col: Color, n: int) -> void:
 	var p := CPUParticles3D.new()
 	var qm := QuadMesh.new()
-	qm.size = Vector2(0.09, 0.09)
+	qm.size = Vector2(0.16, 0.16)
 	var m := _fx_mat(col)
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	m.albedo_texture = _soft_tex()
 	qm.material = m
 	p.mesh = qm
 	p.amount = n if quality > 0 else maxi(4, n / 2)
