@@ -11,6 +11,8 @@ env:
 jobs:
   apk:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -57,3 +59,11 @@ jobs:
         with:
           name: sandlancer-apk
           path: build/sandlancer.apk
+
+      - name: Publish the APK as a direct download
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest build
+          prerelease: true
+          files: build/sandlancer.apk
