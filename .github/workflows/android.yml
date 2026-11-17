@@ -31,11 +31,10 @@ jobs:
           unzip -q templates.tpz
           mv templates/* ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable/
 
-      - name: Point Godot at the Android SDK and create a debug key
+      - name: Point Godot at the Android SDK and the signing key
         run: |
-          keytool -genkeypair -keystore $HOME/debug.keystore -storepass android -keypass android \
-            -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
+          # fixed development key kept in the repo, so each build installs over the last
+          cp ci/dev.keystore $HOME/debug.keystore
           mkdir -p ~/.config/godot
           {
             echo '[gd_resource type="EditorSettings" format=3]'
@@ -52,13 +51,17 @@ jobs:
         run: |
           mkdir -p build
           ./godot --headless --path . --import || true
-          ./godot --headless --path . --export-debug "Android" build/sandlancer.apk
+          export GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$HOME/debug.keystore
+          export GODOT_ANDROID_KEYSTORE_RELEASE_USER=androiddebugkey
+          export GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=android
+          ./godot --headless --path . --export-release "Android" build/sandlancer.apk
+          ./godot --headless --path . --export-release "Android32" build/sandlancer-32bit.apk
           ls -la build
 
       - uses: actions/upload-artifact@v4
         with:
           name: sandlancer-apk
-          path: build/sandlancer.apk
+          path: build/*.apk
 
       - name: Publish the APK as a direct download
         uses: softprops/action-gh-release@v2
@@ -66,4 +69,4 @@ jobs:
           tag_name: latest
           name: Latest build
           prerelease: true
-          files: build/sandlancer.apk
+          files: build/*.apk
