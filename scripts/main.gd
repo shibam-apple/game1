@@ -49,6 +49,8 @@ var _shot_path := ""
 var _elapsed := 0.0
 var _test_hp := 0.0
 var _closeup := false
+var _pebbles: MultiMeshInstance3D
+var _haze: CPUParticles3D
 var _soft: GradientTexture2D
 var sword_rot := Vector3(-999, 0, 0)
 var combo := 0
@@ -105,6 +107,13 @@ func _ready() -> void:
 
 	var layer := CanvasLayer.new()
 	add_child(layer)
+	var film := ColorRect.new()
+	film.set_anchors_preset(Control.PRESET_FULL_RECT)
+	film.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var fm := ShaderMaterial.new()
+	fm.shader = load("res://shaders/film.gdshader")
+	film.material = fm
+	layer.add_child(film)
 	hud = HudS.new()
 	hud.game = self
 	layer.add_child(hud)
@@ -203,7 +212,7 @@ func _build_world() -> void:
 	env.tonemap_white = 6.0
 	env.fog_enabled = true
 	env.fog_light_color = Color(0.8, 0.68, 0.56)
-	env.fog_density = 0.0055
+	env.fog_density = 0.0042
 	env.fog_sun_scatter = 0.3
 	env.fog_sky_affect = 0.0
 	env.glow_enabled = true
@@ -245,6 +254,8 @@ func _build_world() -> void:
 	sand.set_shader_parameter("dry_albedo", load(TEX + "aerial_sand_diff_2k.jpg"))
 	sand.set_shader_parameter("dry_normal", load(TEX + "aerial_sand_nor_gl_2k.jpg"))
 	sand.set_shader_parameter("dry_arm", load(TEX + "aerial_sand_arm_2k.jpg"))
+	sand.set_shader_parameter("gravel_albedo", load(TEX + "gravelly_sand_diff_2k.jpg"))
+	sand.set_shader_parameter("gravel_normal", load(TEX + "gravelly_sand_nor_gl_2k.jpg"))
 	sand.set_shader_parameter("wet_albedo", load(TEX + "damp_sand_diff_1k.jpg"))
 	sand.set_shader_parameter("wet_normal", load(TEX + "damp_sand_nor_gl_1k.jpg"))
 	sand.set_shader_parameter("vary", _noise_tex(0.02, 4, false, 9))
@@ -253,36 +264,63 @@ func _build_world() -> void:
 	terrain.material_override = sand
 	add_child(terrain)
 
-	# Arena edge: weathered rock outcrops, kept low so the mechs stay visible.
+	# ---- scanned desert rock (Poly Haven) -------------------------------------
 	var r := RandomNumberGenerator.new()
 	r.seed = 11
-	var rock := ORMMaterial3D.new()
-	rock.albedo_color = Color(0.85, 0.6, 0.44)
-	rock.albedo_texture = load(TEX + "rock_face_03_diff_1k.jpg")
-	rock.normal_enabled = true
-	rock.normal_texture = load(TEX + "rock_face_03_nor_gl_1k.jpg")
-	rock.normal_scale = 1.3
-	rock.orm_texture = load(TEX + "rock_face_03_arm_1k.jpg")
-	rock.ao_enabled = true
-	rock.uv1_triplanar = true
-	rock.uv1_scale = Vector3(0.3, 0.3, 0.3)
-	var rock_meshes: Array = []
-	for i in 4:
-		rock_meshes.append(_make_rock(100 + i))
-	for i in 26:
-		var ang := TAU * i / 26.0 + r.randf_range(-0.09, 0.09)
-		var d := ARENA_R + r.randf_range(1.8, 5.5)
-		var tall := r.randf() < 0.22
-		var sc := Vector3(r.randf_range(1.0, 2.4), r.randf_range(2.2, 4.6) if tall else r.randf_range(0.6, 1.4), r.randf_range(1.0, 2.2))
-		_add_mesh(self, rock_meshes[i % 4], Vector3(cos(ang) * d, sc.y * 0.25, sin(ang) * d), rock, Vector3(r.randf_range(-12, 12), r.randf() * 360.0, r.randf_range(-12, 12)), sc)
-	# A few far mesas for depth
-	var far_rock: ORMMaterial3D = rock.duplicate()
-	far_rock.uv1_scale = Vector3(0.02, 0.02, 0.02)
-	for i in 7:
+	var warm := Color(1.0, 0.82, 0.66)
+	# medium stones ringing the duelling ground
+	var stone := _rock_mesh("rock_09", "rock_09_LOD0", warm)
+	for i in 34:
+		var ang := TAU * i / 34.0 + r.randf_range(-0.14, 0.14)
+		var d := ARENA_R + r.randf_range(1.2, 9.0)
+		var sc := r.randf_range(4.0, 17.0)
+		_place(stone, Vector3(cos(ang) * d, -0.05, sin(ang) * d), Vector3(r.randf_range(-8, 8), r.randf() * 360.0, r.randf_range(-8, 8)), Vector3(sc, sc * r.randf_range(0.8, 1.5), sc))
+	# boulders
+	var boulder := _rock_mesh("namaqualand_boulder_03", "boulder_03_LOD0", warm)
+	for i in 5:
 		var ang := r.randf() * TAU
-		var d := r.randf_range(120.0, 260.0)
-		var w := r.randf_range(18.0, 40.0)
-		_add_mesh(self, rock_meshes[i % 4], Vector3(cos(ang) * d, 6.0, sin(ang) * d), far_rock, Vector3(0, r.randf() * 360.0, 0), Vector3(w, r.randf_range(14.0, 30.0), w * 0.8))
+		var d := ARENA_R + r.randf_range(5.0, 16.0)
+		var sc := r.randf_range(0.9, 1.9)
+		_place(boulder, Vector3(cos(ang) * d, -0.15, sin(ang) * d), Vector3(0, r.randf() * 360.0, 0), Vector3.ONE * sc)
+	# cliff outcrops further out, for a broken skyline behind the fight
+	var cliff_a := _rock_mesh("rock_face_01", "rock_face_01", warm)
+	var cliff_b := _rock_mesh("rock_face_02", "rock_face_02", warm)
+	for i in 11:
+		var ang := TAU * i / 11.0 + r.randf_range(-0.2, 0.2)
+		var d := r.randf_range(34.0, 85.0)
+		var sc := r.randf_range(2.6, 6.5) * (1.0 + d / 90.0)
+		_place(cliff_a if i % 2 == 0 else cliff_b, Vector3(cos(ang) * d, -1.2, sin(ang) * d), Vector3(0, r.randf() * 360.0, 0), Vector3(sc, sc * r.randf_range(0.8, 1.3), sc))
+	# loose stones and pebbles everywhere, drawn in one batch
+	var pebble := _rock_mesh("moon_rock_01", "moon_rock_01_LOD3", warm)
+	var pmm := MultiMesh.new()
+	pmm.transform_format = MultiMesh.TRANSFORM_3D
+	pmm.mesh = pebble
+	pmm.instance_count = 320
+	for i in pmm.instance_count:
+		var ang := r.randf() * TAU
+		var d := sqrt(r.randf()) * 46.0
+		var sc := r.randf_range(0.5, 2.2) if r.randf() < 0.8 else r.randf_range(2.5, 5.5)
+		if d < ARENA_R:
+			sc = minf(sc, 1.6)
+		var basis := Basis.from_euler(Vector3(r.randf_range(-0.3, 0.3), r.randf() * TAU, r.randf_range(-0.3, 0.3))).scaled(Vector3(sc, sc * r.randf_range(0.7, 1.2), sc))
+		pmm.set_instance_transform(i, Transform3D(basis, Vector3(cos(ang) * d, -0.01 * sc, sin(ang) * d)))
+	_pebbles = MultiMeshInstance3D.new()
+	_pebbles.multimesh = pmm
+	_pebbles.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_pebbles)
+
+	# ---- mountain ranges fading into the haze -----------------------------------
+	var range_mat := StandardMaterial3D.new()
+	range_mat.albedo_color = Color(0.62, 0.5, 0.4)
+	range_mat.roughness = 1.0
+	range_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var ranges := [[330.0, 78.0, 3], [500.0, 130.0, 7], [720.0, 200.0, 13]]
+	for cfg in ranges:
+		var mi := MeshInstance3D.new()
+		mi.mesh = _make_range(cfg[0], cfg[1], cfg[2])
+		mi.material_override = range_mat
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi)
 
 	# The Broken Ring on the horizon
 	var ring := TorusMesh.new()
@@ -290,30 +328,16 @@ func _build_world() -> void:
 	ring.outer_radius = 172.0
 	ring.rings = 48
 	ring.ring_segments = 8
-	_add_mesh(self, ring, Vector3(-190, -30, -330), _mat(Color(0.22, 0.2, 0.2), 0.6, 0.5), Vector3(82, 24, 8))
-	# Pale moon
-	var moon := SphereMesh.new()
-	moon.radius = 95.0
-	moon.height = 190.0
-	var mm := StandardMaterial3D.new()
-	mm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mm.albedo_color = Color(0.86, 0.74, 0.62)
-	mm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mm.albedo_color.a = 0.28
-	mm.disable_fog = true
-	_add_mesh(self, moon, Vector3(170, 190, -560), mm)
-
-	# Gantry towers behind the enemy mech
-	var steel := _mat(Color(0.16, 0.14, 0.14), 0.6, 0.6)
-	for i in 5:
-		var tm := BoxMesh.new()
-		tm.size = Vector3(r.randf_range(3, 6), r.randf_range(14, 34), r.randf_range(3, 6))
-		var tp := Vector3(24.0 + i * 9.0 + r.randf_range(-2, 2), tm.size.y * 0.5, -52.0 - r.randf_range(0, 20))
-		_add_mesh(self, tm, tp, steel)
-		var lm := BoxMesh.new()
-		lm.size = Vector3(0.5, 0.3, 0.3)
-		_add_mesh(self, lm, tp + Vector3(0, tm.size.y * 0.3, tm.size.z * 0.5 + 0.2), _glow_mat(Color(1.0, 0.7, 0.35), 4.0))
-
+	var ring_mat := StandardMaterial3D.new()
+	ring_mat.albedo_color = Color(0.5, 0.46, 0.44)
+	ring_mat.albedo_texture = load(TEX + "metal_plate_02_diff_1k.jpg")
+	ring_mat.normal_enabled = true
+	ring_mat.normal_texture = load(TEX + "metal_plate_02_nor_gl_1k.jpg")
+	ring_mat.metallic = 0.6
+	ring_mat.roughness = 0.6
+	ring_mat.uv1_triplanar = true
+	ring_mat.uv1_scale = Vector3(0.03, 0.03, 0.03)
+	_add_mesh(self, ring, Vector3(-190, -30, -330), ring_mat, Vector3(82, 24, 8))
 	# The two machines watch their pilots settle it on foot.
 	lancer = _build_mech("res://assets/characters/ran/character.fbx", Color(0.78, 0.74, 0.66), Color(0.35, 0.62, 1.0), false)
 	lancer.position = Vector3(-13, 0, 33)
@@ -327,7 +351,7 @@ func _build_world() -> void:
 	# Blowing dust
 	dust = CPUParticles3D.new()
 	var qm := QuadMesh.new()
-	qm.size = Vector2(0.28, 0.28)
+	qm.size = Vector2(0.12, 0.12)
 	var dm := StandardMaterial3D.new()
 	dm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	dm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -347,6 +371,33 @@ func _build_world() -> void:
 	dust.preprocess = 5.0
 	dust.position.y = 2.5
 	add_child(dust)
+
+	_haze = CPUParticles3D.new()
+	var hq := QuadMesh.new()
+	hq.size = Vector2(9.0, 2.2)
+	var hm := StandardMaterial3D.new()
+	hm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	hm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	hm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	hm.albedo_color = Color(1.0, 0.88, 0.72, 0.05)
+	hm.albedo_texture = _soft_tex()
+	hm.proximity_fade_enabled = false
+	hq.material = hm
+	_haze.mesh = hq
+	_haze.amount = 26
+	_haze.lifetime = 9.0
+	_haze.preprocess = 9.0
+	_haze.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	_haze.emission_box_extents = Vector3(40, 0.5, 40)
+	_haze.direction = Vector3(1, 0, 0.25)
+	_haze.spread = 6.0
+	_haze.initial_velocity_min = 2.5
+	_haze.initial_velocity_max = 5.0
+	_haze.gravity = Vector3.ZERO
+	_haze.scale_amount_min = 0.7
+	_haze.scale_amount_max = 1.8
+	_haze.position.y = 0.9
+	add_child(_haze)
 
 
 func _noise_tex(freq: float, octaves: int, normal: bool, seed_v: int) -> NoiseTexture2D:
@@ -430,6 +481,52 @@ func _make_rock(seed_v: int) -> ArrayMesh:
 	return st.commit()
 
 
+func _rock_mesh(id: String, node_name: String, tint: Color) -> Mesh:
+	var scene: Node = load("res://assets/rocks/%s/%s.gltf" % [id, id]).instantiate()
+	var mi: MeshInstance3D = scene.find_child(node_name, true, false)
+	var mesh: Mesh = mi.mesh
+	var mat := mesh.surface_get_material(0)
+	if mat is BaseMaterial3D:
+		(mat as BaseMaterial3D).albedo_color = tint
+	scene.free()
+	return mesh
+
+
+func _place(mesh: Mesh, pos: Vector3, rot_deg: Vector3, scl: Vector3) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	add_child(mi)
+	mi.position = pos
+	mi.rotation_degrees = rot_deg
+	mi.scale = scl
+	return mi
+
+
+## A ring of jagged ridgeline at a given distance; fog turns it into a silhouette.
+func _make_range(radius: float, height: float, seed_v: int) -> ArrayMesh:
+	var n := FastNoiseLite.new()
+	n.seed = seed_v
+	n.frequency = 0.55
+	n.fractal_octaves = 4
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var steps := 420
+	var top: Array = []
+	var base: Array = []
+	for i in steps + 1:
+		var a := TAU * i / steps
+		var dir := Vector3(cos(a), 0, sin(a))
+		var ridge := 1.0 - absf(n.get_noise_2d(cos(a) * 2.0, sin(a) * 2.0))
+		var h := height * (0.4 + 0.6 * pow(ridge, 1.6)) + n.get_noise_2d(cos(a) * 7.0 + 40.0, sin(a) * 7.0) * height * 0.07
+		top.append(dir * radius + Vector3(0, maxf(4.0, h), 0))
+		base.append(dir * (radius - height * 1.6) + Vector3(0, -6.0, 0))
+	for i in steps:
+		for v in [base[i], top[i], top[i + 1], base[i], top[i + 1], base[i + 1]]:
+			st.add_vertex(v)
+	st.generate_normals()
+	return st.commit()
+
+
 func _build_mech(model: String, body: Color, glow: Color, winged: bool) -> Node3D:
 	var m: Node3D = Mocap.new()
 	add_child(m)
@@ -496,6 +593,8 @@ func _apply_quality() -> void:
 	env.glow_enabled = quality >= 1
 	bounce.visible = true
 	dust.amount = [50, 110, 200][quality]
+	_haze.amount = [10, 22, 34][quality]
+	_pebbles.multimesh.visible_instance_count = [110, 220, 320][quality]
 	Engine.max_fps = 60
 	var cf := ConfigFile.new()
 	cf.set_value("gfx", "quality", quality)
