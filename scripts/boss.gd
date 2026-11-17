@@ -11,7 +11,7 @@ enum S { IDLE, HOVER, ATTACK, GROUNDED, STAGGER, RECOIL, SHIFT, EVADE, DEAD }
 
 const MAX_HP := 1800.0
 const MAX_WILL := 300.0
-const HOVER_ALT := 2.3
+const HOVER_ALT := 1.5
 const AMBER := Color(1.0, 0.62, 0.15)
 const RED := Color(1.0, 0.1, 0.06)
 
@@ -27,7 +27,7 @@ const ATTACKS := {
 		{"t": 0.75, "kind": "tele", "clip": "slash_l", "hit": 0.5, "total": 0.9},
 		{"t": 1.07, "kind": "dash", "dur": 0.18, "alt": 0.7, "stop": 2.0},
 		{"t": 1.25, "kind": "melee", "dmg": 13.0, "range": 3.3, "arc": 180.0, "roll": -0.2},
-		{"t": 1.4, "kind": "alt", "alt": 2.3}]},
+		{"t": 1.4, "kind": "alt", "alt": 1.5}]},
 	"volley": {"dur": 1.6, "ev": [
 		{"t": 0.0, "kind": "tele", "clip": "thrust", "hit": 0.5, "total": 1.5},
 		{"t": 0.5, "kind": "bolt"}, {"t": 0.8, "kind": "bolt"}, {"t": 1.1, "kind": "bolt"}]},

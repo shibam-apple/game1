@@ -9,14 +9,16 @@ enum S { IDLE, ATTACK, DODGE, GUARD, HURT, ABILITY, DRINK, DEAD }
 const MAX_HP := 100.0
 const MAX_STAMINA := 100.0
 const MAX_FLASKS := 3
-const MOVE_SPEED := 5.6
+const MOVE_SPEED := 4.6
+const STRAFE_SPEED := 3.2
+const BACK_SPEED := 2.8
 const MELEE_RANGE := 3.2
 const CD_MAX := [8.0, 13.0]
 const COMBO := [
-	{"clip": "slash_r", "hit": 0.13, "dur": 0.40, "dmg": 9.0, "will": 8.0},
-	{"clip": "slash_l", "hit": 0.13, "dur": 0.40, "dmg": 9.0, "will": 8.0},
-	{"clip": "slash_c", "hit": 0.15, "dur": 0.44, "dmg": 11.0, "will": 10.0},
-	{"clip": "overhead", "hit": 0.24, "dur": 0.68, "dmg": 21.0, "will": 22.0},
+	{"clip": "slash_r", "lead": 0.34, "rec": 0.34, "dmg": 9.0, "will": 8.0},
+	{"clip": "slash_l", "lead": 0.34, "rec": 0.34, "dmg": 9.0, "will": 8.0},
+	{"clip": "slash_c", "lead": 0.36, "rec": 0.36, "dmg": 11.0, "will": 10.0},
+	{"clip": "finisher", "lead": 0.52, "rec": 0.5, "dmg": 21.0, "will": 22.0},
 ]
 
 var game: Node
@@ -152,7 +154,10 @@ func _physics_process(delta: float) -> void:
 	match state:
 		S.IDLE:
 			if move_input.length() > 0.05:
-				vel = game.screen_dir_to_world(move_input) * MOVE_SPEED * minf(1.0, move_input.length())
+				var wd: Vector3 = game.screen_dir_to_world(move_input)
+				var ld := global_transform.basis.inverse() * wd
+				var top := ld.x * ld.x * STRAFE_SPEED + ld.z * ld.z * (MOVE_SPEED if ld.z < 0.0 else BACK_SPEED)
+				vel = wd * top * minf(1.0, move_input.length())
 				walking = minf(1.0, move_input.length())
 			if guard_held:
 				_enter_guard()
@@ -170,14 +175,11 @@ func _physics_process(delta: float) -> void:
 			_run_events()
 			if _t < _dash_until:
 				vel = _dash_vel
-			if _spin:
-				vis.rotation.y += delta * 22.0
-			if _leap:
-				var u := clampf(_t / 0.6, 0.0, 1.0)
-				vis.position.y = sin(u * PI) * 2.3
+			# travel captured in the swing itself
+			vel += global_transform.basis * vis.take_root_motion() / maxf(delta, 0.001)
 			if _t >= _dur:
 				_end_action()
-			elif state == S.ATTACK and _buffer_t > 0.0 and _events.is_empty() and _t >= _dur * 0.62:
+			elif state == S.ATTACK and _buffer_t > 0.0 and _events.is_empty() and _t >= _dur - 0.2:
 				_buffer_t = 0.0
 				_start_attack()
 		S.DODGE:
@@ -199,12 +201,13 @@ func _physics_process(delta: float) -> void:
 	if not _leap:
 		var ty := 0.0
 		if (state == S.ATTACK or state == S.ABILITY) and to_boss.length() < 4.8 and not boss.is_dead():
-			ty = boss.alt * 0.85
+			ty = minf(boss.alt * 0.6, 0.75)
 		vis.position.y = move_toward(vis.position.y, ty, (16.0 if ty > vis.position.y else 9.0) * delta)
 	_cape_t += delta
 	var flare := 14.0 + vel.length() * 5.0 + vis.position.y * 10.0
 	_cape.rotation_degrees.x = lerpf(_cape.rotation_degrees.x, -(minf(flare, 75.0) + sin(_cape_t * 7.0) * 5.0), minf(1.0, 8.0 * delta))
-	vis.walk_amount = lerpf(vis.walk_amount, walking, minf(1.0, 12.0 * delta))
+	var lv := global_transform.basis.inverse() * vel
+	vis.move_local = Vector2(lv.x, -lv.z) if state in [S.IDLE, S.GUARD] else Vector2.ZERO
 	velocity = vel
 	move_and_slide()
 	var p := global_position
@@ -303,18 +306,19 @@ func _start_attack() -> void:
 		# Mirage Counter: reward for a perfect dodge
 		_counter_window = 0.0
 		_set_state(S.ATTACK)
-		_dur = 0.5
-		_close_gap(2.2, 0.1, 60.0)
-		vis.play("thrust", 0.1, 0.5)
-		_events = [{"t": 0.1, "kind": "melee", "dmg": 30.0, "will": 40.0, "range": MELEE_RANGE, "fx": 1.5, "stop": 0.1, "shake": 0.35, "limit": 8.0}]
+		var ch: float = vis.lead("slash_c", 0.2)
+		_dur = ch + 0.36
+		_close_gap(2.4, ch, 60.0)
+		vis.play("slash_c", ch, _dur + 0.25)
+		_events = [{"t": ch, "kind": "melee", "dmg": 30.0, "will": 40.0, "range": MELEE_RANGE, "fx": 1.5, "stop": 0.1, "shake": 0.35, "limit": 8.0}]
 		_combo = 1
 		return
 	var c: Dictionary = COMBO[_combo]
-	var hit: float = float(c["hit"]) / sp
+	var hit: float = vis.lead(c["clip"], float(c["lead"])) / sp
 	_set_state(S.ATTACK)
-	_dur = float(c["dur"]) / sp
-	_close_gap(2.3, hit, 15.0)
-	vis.play(c["clip"], hit, _dur)
+	_dur = hit + float(c["rec"]) / sp
+	_close_gap(2.6, hit, 12.0)
+	vis.play(c["clip"], hit, _dur + 0.25)
 	var heavy := _combo == 3
 	_events = [{"t": hit, "kind": "melee", "dmg": c["dmg"], "will": c["will"], "range": MELEE_RANGE,
 		"fx": 1.35 if heavy else 1.0, "roll": [0.35, -0.35, 0.15, 1.5][_combo],
@@ -342,9 +346,11 @@ func _dodge(dir: Vector2) -> void:
 	_dur = 0.36
 	_iframes = 0.27
 	_dodge_credit = true
-	_dash_vel = game.screen_dir_to_world(dir) * 11.5
+	var wdir: Vector3 = game.screen_dir_to_world(dir)
+	_dash_vel = wdir * 11.5
 	collision_mask = 0
-	vis.play("crouch", 0.08, 0.36)
+	var ldir := global_transform.basis.inverse() * wdir
+	vis.play_dodge(Vector2(ldir.x, -ldir.z), 0.36)
 	game.sfx.play("dodge")
 
 
@@ -355,10 +361,10 @@ func _lunge() -> void:
 	_stam_delay = 0.5
 	_set_state(S.ATTACK)
 	var sp := _speed()
-	_dur = 0.52 / sp
-	var hit := 0.2 / sp
-	_close_gap(2.3, hit, 30.0)
-	vis.play("thrust", hit, _dur)
+	var hit: float = vis.lead("thrust", 0.38) / sp
+	_dur = hit + 0.34 / sp
+	_close_gap(3.2, hit, 22.0)
+	vis.play("thrust", hit, _dur + 0.25)
 	_events = [{"t": hit, "kind": "melee", "dmg": 13.0, "will": 14.0, "range": MELEE_RANGE, "fx": 1.1, "stop": 0.05, "limit": 4.0}]
 	_combo = 1
 	game.sfx.play("dodge")
@@ -373,7 +379,7 @@ func on_guard(on: bool) -> void:
 func _enter_guard() -> void:
 	_set_state(S.GUARD)
 	_guard_t = 0.0
-	vis.play("guard", 0.07, 0.2, true)
+	vis.play("guard", 0.1, 0.2, true)
 
 
 func on_ability(i: int) -> void:
@@ -384,20 +390,20 @@ func on_ability(i: int) -> void:
 	_armor = true
 	if i == 0:
 		# Stormrend: whirling triple cut that shreds the Will gauge
-		_dur = 0.95
-		_spin = true
-		_close_gap(2.2, 0.2, 26.0)
-		vis.play("spin", 0.3, 0.95)
+		var sh: float = vis.lead("spin", 0.5)
+		_dur = sh + 0.75
+		_close_gap(3.0, sh, 22.0)
+		vis.play("spin", sh, _dur + 0.25)
 		for k in 3:
-			_events.append({"t": 0.2 + 0.2 * k, "kind": "melee", "dmg": 10.0, "will": 18.0, "range": 3.6, "fx": 1.5, "roll": 0.3 * (k - 1), "shock": k == 2, "stop": 0.05, "limit": 3.0})
+			_events.append({"t": sh + 0.2 * k, "kind": "melee", "dmg": 10.0, "will": 18.0, "range": 3.6, "fx": 1.5, "roll": 0.3 * (k - 1), "shock": k == 2, "stop": 0.05, "limit": 3.0})
 		game.sfx.play("limit")
 	else:
 		# Glassfall: leap and crash down
-		_dur = 1.0
-		_leap = true
-		_close_gap(1.9, 0.58, 20.0)
-		vis.play("leap", 0.6, 1.0)
-		_events = [{"t": 0.6, "kind": "melee", "dmg": 38.0, "will": 45.0, "range": 4.2, "fx": 1.8, "roll": 1.5, "shock": true, "stop": 0.12, "shake": 0.6, "limit": 6.0}]
+		var lh: float = vis.lead("leap", 0.75)
+		_dur = lh + 0.5
+		_close_gap(3.4, lh, 16.0)
+		vis.play("leap", lh, _dur + 0.25)
+		_events = [{"t": lh, "kind": "melee", "dmg": 38.0, "will": 45.0, "range": 4.2, "fx": 1.8, "roll": 1.5, "shock": true, "stop": 0.12, "shake": 0.6, "limit": 6.0}]
 		game.sfx.play("limit")
 
 

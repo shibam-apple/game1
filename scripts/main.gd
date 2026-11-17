@@ -119,6 +119,9 @@ func _ready() -> void:
 	input.flask.connect(func(): if gstate == G.FIGHT: player.on_flask())
 
 	_apply_quality()
+	if "--strikes" in args:
+		for k in Mocap._strike:
+			print("STRIKE %-18s %.2f / %.2f" % [k, Mocap._strike[k], Mocap._anims[k].length])
 	if "--hp=" in " ".join(args):
 		for a in args:
 			if a.begins_with("--hp="):

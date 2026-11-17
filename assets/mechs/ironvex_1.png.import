@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://ds8y20lupb3sw"
-path="res://.godot/imported/ironvex_1.png-3eadd7486be626e603ee6c612e283417.ctex"
+path.s3tc="res://.godot/imported/ironvex_1.png-3eadd7486be626e603ee6c612e283417.s3tc.ctex"
+path.etc2="res://.godot/imported/ironvex_1.png-3eadd7486be626e603ee6c612e283417.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "280aa09a5915f3d4c93b5d4293b88ef8"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/mechs/ironvex_1.png"
-dest_files=["res://.godot/imported/ironvex_1.png-3eadd7486be626e603ee6c612e283417.ctex"]
+dest_files=["res://.godot/imported/ironvex_1.png-3eadd7486be626e603ee6c612e283417.s3tc.ctex", "res://.godot/imported/ironvex_1.png-3eadd7486be626e603ee6c612e283417.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/hdr_compression=1
@@ -33,5 +35,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1
